@@ -30,7 +30,7 @@ const fieldPool = {
     
     // Complex Observation Fields
     caixa_ok: { label: 'Caixa ok?', type: 'binary', simple: false, complex: true },
-    cabos_rompidos: { label: 'Não nota cabos rompidos ou soltos?', type: 'binary', simple: false, complex: true },
+    cabos_rompidos: { label: 'Nota cabos rompidos ou soltos?', type: 'binary', simple: false, complex: true },
     estrutura_ok: { label: 'Estrutura conferida, sem efeito?', type: 'binary', simple: false, complex: true },
     reboot_ok: { label: 'Reboot físico, sem efeito?', type: 'binary', simple: false, complex: true },
     outras_obs: { label: 'Outras observações gerais', type: 'text', default: 'Nenhuma observação adicional.', simple: false, complex: true, fullWidth: true }
@@ -258,7 +258,7 @@ function updatePreviews() {
         
         let obsTech = [];
         if (d('caixa_ok') === 'Sim') obsTech.push("Caixa ok"); else obsTech.push("Caixa fora");
-        if (d('cabos_rompidos') === 'Sim') obsTech.push("Não nota cabos rompidos ou soltos"); else obsTech.push("Cabos rompidos ou soltos encontrados");
+        if (d('cabos_rompidos') === 'Sim') obsTech.push("Nota cabos rompidos ou soltos"); else obsTech.push("Não nota cabos rompidos ou soltos");
         if (d('estrutura_ok') === 'Sim') obsTech.push("Estrutura conferida, sem efeito"); else obsTech.push("Estrutura com anomalias encontradas");
         if (d('reboot_ok') === 'Sim') obsTech.push("Reboot físico realizado, sem efeito"); else obsTech.push("Reboot físico não realizado ou com efeito");
         
