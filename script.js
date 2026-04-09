@@ -29,12 +29,14 @@ const fieldPool = {
     restricao: { label: 'Restrição', type: 'text', default: 'Nenhuma', simple: false, complex: true },
     
     // Complex Observation Fields
-    caixa_ok: { label: 'Caixa ok?', type: 'select', options: ['Sim', 'Não'], simple: false, complex: true },
-    cabos_rompidos: { label: 'Não nota cabos rompidos ou soltos?', type: 'select', options: ['Sim', 'Não'], simple: false, complex: true },
-    estrutura_ok: { label: 'Estrutura conferida, sem efeito?', type: 'select', options: ['Sim', 'Não'], simple: false, complex: true },
-    reboot_ok: { label: 'Reboot físico, sem efeito?', type: 'select', options: ['Sim', 'Não'], simple: false, complex: true },
+    caixa_ok: { label: 'Caixa ok?', type: 'binary', simple: false, complex: true },
+    cabos_rompidos: { label: 'Não nota cabos rompidos ou soltos?', type: 'binary', simple: false, complex: true },
+    estrutura_ok: { label: 'Estrutura conferida, sem efeito?', type: 'binary', simple: false, complex: true },
+    reboot_ok: { label: 'Reboot físico, sem efeito?', type: 'binary', simple: false, complex: true },
     outras_obs: { label: 'Outras observações gerais', type: 'text', default: 'Nenhuma observação adicional.', simple: false, complex: true, fullWidth: true }
 };
+
+const binaryOptions = ['Sim', 'Não'];
 
 // Values storage
 let values = {};
@@ -80,6 +82,9 @@ function saveValues() {
 function resetForm() {
     if (confirm('Deseja limpar todos os campos?')) {
         values = {};
+        Object.keys(fieldPool).forEach(key => {
+            values[key] = '';
+        });
         saveValues();
         renderForm();
         updatePreviews();
@@ -133,49 +138,54 @@ function renderForm() {
             const label = document.createElement('label');
             label.innerText = field.label;
             
-            let input;
-            if (field.type === 'select') {
-                input = document.createElement('select');
-                field.options.forEach(opt => {
-                    const o = document.createElement('option');
-                    o.value = opt;
-                    o.text = opt;
-                    if (values[key] === opt) o.selected = true;
-                    input.appendChild(o);
+            if (field.type === 'binary') {
+                const buttonGroup = document.createElement('div');
+                buttonGroup.className = 'choice-group';
+
+                binaryOptions.forEach(option => {
+                    const button = document.createElement('button');
+                    button.type = 'button';
+                    button.className = `choice-btn ${values[key] === option ? 'active' : ''}`;
+                    button.textContent = option;
+                    button.setAttribute('aria-pressed', values[key] === option ? 'true' : 'false');
+                    button.onclick = () => {
+                        values[key] = option;
+                        saveValues();
+                        renderForm();
+                        updatePreviews();
+                    };
+                    buttonGroup.appendChild(button);
                 });
-                
-                input.onchange = (e) => {
+
+                div.appendChild(label);
+                div.appendChild(buttonGroup);
+            } else {
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.placeholder = field.label;
+                input.value = values[key] !== undefined ? values[key] : '';
+                input.id = `input-${key}`;
+                input.oninput = (e) => {
                     values[key] = e.target.value;
                     saveValues();
                     updatePreviews();
                 };
-            } else {
-                input = document.createElement('input');
-                input.type = 'text';
-                input.placeholder = field.label;
-                input.value = values[key] !== undefined ? values[key] : (field.default || '');
-            }
-            
-            input.id = `input-${key}`;
-            input.oninput = (e) => {
-                values[key] = e.target.value;
-                saveValues();
-                updatePreviews();
-            };
-            
-            // Advance on Enter
-            input.onkeydown = (e) => {
-                if (e.key === 'Enter') {
-                    const inputs = Array.from(container.querySelectorAll('input, select'));
-                    const index = inputs.indexOf(e.target);
-                    if (index > -1 && index < inputs.length - 1) {
-                        inputs[index + 1].focus();
+                
+                // Advance on Enter
+                input.onkeydown = (e) => {
+                    if (e.key === 'Enter') {
+                        const inputs = Array.from(container.querySelectorAll('input, button.choice-btn'));
+                        const index = inputs.indexOf(e.target);
+                        if (index > -1 && index < inputs.length - 1) {
+                            inputs[index + 1].focus();
+                        }
                     }
-                }
-            };
+                };
 
-            div.appendChild(label);
-            div.appendChild(input);
+                div.appendChild(label);
+                div.appendChild(input);
+            }
+
             container.appendChild(div);
         }
     });

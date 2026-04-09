@@ -213,6 +213,41 @@ header {
     box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
 }
 
+.choice-group {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+}
+
+.choice-btn {
+    background: rgba(15, 23, 42, 0.4);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    padding: 0.6rem 0.75rem;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 600;
+    transition: var(--transition);
+}
+
+.choice-btn:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-main);
+}
+
+.choice-btn.active {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
+}
+
+.choice-btn:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+}
+
 /* Preview Section */
 .preview-section {
     display: flex;
