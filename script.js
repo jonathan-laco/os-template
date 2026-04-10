@@ -1,7 +1,7 @@
 // State Management
 let currentMode = 'simple';
 const fieldPool = {
-    // Simple OS Fields (Order from Python)
+
     prioridade_s: { label: 'Nível de prioridade', type: 'text', default: 'P1', simple: true, complex: false },
     plano: { label: 'Plano contratado', type: 'text', default: '', simple: true, complex: false },
     caixa_porta: { label: 'Caixa e Porta', type: 'text', default: '', simple: true, complex: false },
@@ -13,7 +13,7 @@ const fieldPool = {
     nome: { label: 'Nome', type: 'text', default: '', simple: true, complex: false },
     horario: { label: 'HORÁRIO', type: 'text', default: '', simple: true, complex: false },
 
-    // Complex OS Fields (Order from Python)
+
     cliente: { label: 'Cliente', type: 'text', default: '', simple: false, complex: true },
     os_recente: { label: 'Houve O.S. recente?', type: 'text', default: 'Não', simple: false, complex: true },
     tipo: { label: 'Tipo (P0/P1/P2)', type: 'text', default: 'P1', simple: false, complex: true },
@@ -27,8 +27,7 @@ const fieldPool = {
     referencia: { label: 'Referência', type: 'text', default: '', simple: false, complex: true },
     local: { label: 'Local', type: 'text', default: '', simple: false, complex: true },
     restricao: { label: 'Restrição', type: 'text', default: 'Nenhuma', simple: false, complex: true },
-    
-    // Complex Observation Fields
+
     caixa_ok: { label: 'Caixa ok?', type: 'binary', simple: false, complex: true },
     cabos_rompidos: { label: 'Nota cabos rompidos ou soltos?', type: 'binary', simple: false, complex: true },
     estrutura_ok: { label: 'Estrutura conferida, sem efeito?', type: 'binary', simple: false, complex: true },
@@ -38,10 +37,8 @@ const fieldPool = {
 
 const binaryOptions = ['Sim', 'Não'];
 
-// Values storage
 let values = {};
 
-// Initialize application
 document.addEventListener('DOMContentLoaded', () => {
     loadSettings();
     renderForm();
@@ -94,7 +91,6 @@ function resetForm() {
 function switchMode(mode) {
     currentMode = mode;
     
-    // Update active button
     document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
     document.getElementById(`btn-${mode}`).classList.add('active');
 
@@ -171,7 +167,6 @@ function renderForm() {
                     updatePreviews();
                 };
                 
-                // Advance on Enter
                 input.onkeydown = (e) => {
                     if (e.key === 'Enter') {
                         const inputs = Array.from(container.querySelectorAll('input, button.choice-btn'));
@@ -252,7 +247,6 @@ function updatePreviews() {
         osPreview.value = msgOS;
         telPreview.value = msgTel;
     } else {
-        // Complex Mode
         const now = new Date();
         const dateTime = now.toLocaleString('pt-BR');
         
