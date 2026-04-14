@@ -27,6 +27,7 @@ const fieldPool = {
     referencia: { label: 'Referência', type: 'text', default: '', simple: false, complex: true },
     local: { label: 'Local', type: 'text', default: '', simple: false, complex: true },
     restricao: { label: 'Restrição', type: 'text', default: 'Nenhuma', simple: false, complex: true },
+    data_visita: { label: 'Data da Visita', type: 'text', default: '', simple: false, complex: true },
 
     caixa_ok: { label: 'Caixa ok?', type: 'binary', simple: false, complex: true },
     cabos_rompidos: { label: 'Nota cabos rompidos ou soltos?', type: 'binary', simple: false, complex: true },
@@ -264,6 +265,7 @@ Motivo: ${d('motivo')}
 =====================
 
 Alarmes da ONU: ${d('alarme_onu')}
+Sinal da ONU: ${d('sinal_onu')} 
 
 =====================
 Observações Técnicas: ${obsFormatadas}
@@ -281,7 +283,7 @@ Contato: ${d('contato')}`;
 O.S.: ${d('tipo')}
 Motivo: ${d('motivo')}
 Ult. O.S.: ${d('os_recente')}
-Data: ${dateTime.split(' ')[0]}
+Data: ${d('data_visita')}
 Telefone: ${d('contato')}
 Local: ${d('local')}`;
 
