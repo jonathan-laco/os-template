@@ -604,28 +604,56 @@ function updatePreviews() {
         lines.push(`${fullLabel}: ${d(cfg.key)}`);
     };
 
-    if (currentMode === 'simple') {
-        const simpleOsLines = [];
-        [
-            { mode: 'simple', output: 'os', key: 'reason', icon: '⚠️' },
-            { mode: 'simple', output: 'os', key: 'priority', icon: '🔴' },
-            { mode: 'simple', output: 'os', key: 'plan', icon: '📦' },
-            { mode: 'simple', output: 'os', key: 'nap', icon: '📍' },
-            { mode: 'simple', output: 'os', key: 'pop', icon: '🏢' },
-            { mode: 'simple', output: 'os', key: 'reference', icon: '📝' },
-            { mode: 'simple', output: 'os', key: 'contact', icon: '☎' },
-            { mode: 'simple', output: 'os', key: 'location', icon: '🏠' },
-            { mode: 'simple', output: 'os', key: 'outras_obs', icon: '🗒️' }
-        ].forEach((cfg) => addLineIfVisible(simpleOsLines, cfg));
+    const simpleEmojiMap = {
+        os: {
+            reason: '⚠️',
+            priority: '🔴',
+            plan: '📦',
+            nap: '📍',
+            pop: '🏢',
+            reference: '📝',
+            contact: '☎️',
+            location: '🏠',
+            customer: '👤',
+            visit_date: '⏰',
+            sinal_onu: '📶',
+            os_recente: '🕘',
+            outras_obs: '🗒️'
+        },
+        tel: {
+            customer: '👤',
+            location: '🏠',
+            priority: '🛠️',
+            visit_date: '⏰',
+            contact: '☎️',
+            reason: '⚠️',
+            outras_obs: '🗒️'
+        }
+    };
 
-        const simpleTelLines = [];
-        [
-            { mode: 'simple', output: 'tel', key: 'customer', icon: '👤' },
-            { mode: 'simple', output: 'tel', key: 'location', icon: '🏠' },
-            { mode: 'simple', output: 'tel', key: 'priority', icon: '🛠', label: 'OS / Prioridade' },
-            { mode: 'simple', output: 'tel', key: 'visit_date', icon: '⏰' },
-            { mode: 'simple', output: 'tel', key: 'outras_obs', icon: '🗒️', label: 'Observações' }
-        ].forEach((cfg) => addLineIfVisible(simpleTelLines, cfg));
+    const simpleLabelOverride = {
+        tel: {
+            priority: 'OS / Prioridade'
+        }
+    };
+
+    const buildSimplePreview = (output) => {
+        const lines = [];
+
+        getOrderedVisibleKeys('simple').forEach((key) => {
+            if (!isVisibleInOutput(key, 'simple', output)) return;
+
+            const icon = simpleEmojiMap[output]?.[key] || '📌';
+            const label = simpleLabelOverride[output]?.[key] || getLabelForMode(fieldPool[key], 'simple');
+            lines.push(`${icon} ${label}: ${d(key)}`);
+        });
+
+        return lines;
+    };
+
+    if (currentMode === 'simple') {
+        const simpleOsLines = buildSimplePreview('os');
+        const simpleTelLines = buildSimplePreview('tel');
 
         const msgOS = `📌 *Ficha Técnica* 📌\n\n${simpleOsLines.length ? simpleOsLines.join('\n') : 'Nenhum campo configurado para Ficha Técnica.'}`;
         const msgTel = simpleTelLines.length ? simpleTelLines.join('\n') : 'Nenhum campo configurado para Telegram.';
@@ -633,62 +661,28 @@ function updatePreviews() {
         osPreview.value = msgOS;
         telPreview.value = msgTel;
     } else {
-        const complexLines = [];
+        const buildComplexPreview = (output) => {
+            const lines = [];
 
-        addLineIfVisible(complexLines, { mode: 'complex', output: 'os', key: 'priority', label: 'O.S.' });
-        addLineIfVisible(complexLines, { mode: 'complex', output: 'os', key: 'visit_date', label: 'Data da Visita' });
-        addLineIfVisible(complexLines, { mode: 'complex', output: 'os', key: 'reason', label: 'Motivo' });
+            getOrderedVisibleKeys('complex').forEach((key) => {
+                if (!isVisibleInOutput(key, 'complex', output)) return;
 
-        complexLines.push('=====================');
+                let label = getLabelForMode(fieldPool[key], 'complex');
+                if (output === 'os' && key === 'priority') label = 'O.S.';
+                if (output === 'tel' && key === 'priority') label = 'O.S.';
+                if (output === 'tel' && key === 'visit_date') label = 'Data';
+                if (output === 'tel' && key === 'contact') label = 'Telefone';
 
-        addLineIfVisible(complexLines, { mode: 'complex', output: 'os', key: 'alarme_onu', label: 'Alarmes da ONU' });
-        addLineIfVisible(complexLines, { mode: 'complex', output: 'os', key: 'sinal_onu', label: 'Sinal da ONU' });
+                lines.push(`${label}: ${d(key)}`);
+            });
 
-        const obsTech = [];
-        if (isVisibleInOutput('caixa_ok', 'complex', 'os')) {
-            obsTech.push(d('caixa_ok') === 'Sim' ? 'Caixa ok' : 'Caixa fora');
-        }
-        if (isVisibleInOutput('cabos_rompidos', 'complex', 'os')) {
-            obsTech.push(d('cabos_rompidos') === 'Sim' ? 'Nota cabos rompidos ou soltos' : 'Não nota cabos rompidos ou soltos');
-        }
-        if (isVisibleInOutput('estrutura_ok', 'complex', 'os')) {
-            obsTech.push(d('estrutura_ok') === 'Sim' ? 'Estrutura conferida, sem efeito' : 'Estrutura com anomalias encontradas');
-        }
-        if (isVisibleInOutput('reboot_ok', 'complex', 'os')) {
-            obsTech.push(d('reboot_ok') === 'Sim' ? 'Reboot físico realizado, sem efeito' : 'Reboot físico não realizado ou com efeito');
-        }
+            return lines;
+        };
 
-        if (obsTech.length) {
-            complexLines.push('');
-            complexLines.push(`Observações Técnicas: ${obsTech.join('. ')}.`);
-        }
+        const complexLines = buildComplexPreview('os');
+        const complexTelLines = buildComplexPreview('tel');
 
-        addLineIfVisible(complexLines, { mode: 'complex', output: 'os', key: 'outras_obs', label: 'Outras observações gerais' });
-        addLineIfVisible(complexLines, { mode: 'complex', output: 'os', key: 'os_recente', label: 'Ult. O.S.' });
-
-        complexLines.push('=====================');
-
-        addLineIfVisible(complexLines, { mode: 'complex', output: 'os', key: 'plan', label: 'Pacote' });
-        addLineIfVisible(complexLines, { mode: 'complex', output: 'os', key: 'nap', label: 'NAP' });
-        addLineIfVisible(complexLines, { mode: 'complex', output: 'os', key: 'pop', label: 'POP' });
-        addLineIfVisible(complexLines, { mode: 'complex', output: 'os', key: 'location', label: 'Local' });
-        addLineIfVisible(complexLines, { mode: 'complex', output: 'os', key: 'reference', label: 'Referência' });
-        addLineIfVisible(complexLines, { mode: 'complex', output: 'os', key: 'contact', label: 'Contato' });
-        addLineIfVisible(complexLines, { mode: 'complex', output: 'os', key: 'restricao', label: 'Restrição' });
-
-        const complexTelLines = [];
-        [
-            { mode: 'complex', output: 'tel', key: 'customer', label: 'Cliente' },
-            { mode: 'complex', output: 'tel', key: 'priority', label: 'O.S.' },
-            { mode: 'complex', output: 'tel', key: 'reason', label: 'Motivo' },
-            { mode: 'complex', output: 'tel', key: 'os_recente', label: 'Ult. O.S.' },
-            { mode: 'complex', output: 'tel', key: 'visit_date', label: 'Data' },
-            { mode: 'complex', output: 'tel', key: 'contact', label: 'Telefone' },
-            { mode: 'complex', output: 'tel', key: 'location', label: 'Local' },
-            { mode: 'complex', output: 'tel', key: 'outras_obs', label: 'Observações' }
-        ].forEach((cfg) => addLineIfVisible(complexTelLines, cfg));
-
-        const msgOS = complexLines.filter((line, idx, arr) => !(line === '' && arr[idx - 1] === '')).join('\n');
+        const msgOS = complexLines.length ? complexLines.join('\n') : 'Nenhum campo configurado para Ficha Técnica.';
         const msgTel = complexTelLines.length ? complexTelLines.join('\n') : 'Nenhum campo configurado para Telegram.';
 
         osPreview.value = msgOS;
