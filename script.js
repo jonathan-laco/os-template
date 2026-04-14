@@ -158,6 +158,7 @@ const binaryOptions = ['Sim', 'Não'];
 
 let values = {};
 let lastActiveFieldByMode = { simple: null, complex: null };
+let returnToLastFieldEnabled = true;
 
 const legacyFieldMap = {
     prioridade_s: 'priority',
@@ -187,15 +188,16 @@ document.addEventListener('DOMContentLoaded', () => {
     migrateLegacyValues();
     switchMode(DEFAULT_MODE);
     startTimeUpdate();
+    updateLastFieldPreferenceButton();
 
     document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible' && currentMode !== 'config') {
+        if (returnToLastFieldEnabled && document.visibilityState === 'visible' && currentMode !== 'config') {
             focusLastEditedField(currentMode);
         }
     });
 
     window.addEventListener('focus', () => {
-        if (currentMode !== 'config') {
+        if (returnToLastFieldEnabled && currentMode !== 'config') {
             focusLastEditedField(currentMode);
         }
     });
@@ -254,7 +256,32 @@ function loadSettings() {
         if (Array.isArray(parsedOrder.complex)) fieldOrder.complex = parsedOrder.complex;
     }
 
+    const savedReturnPreference = localStorage.getItem('os_generator_return_last_field');
+    if (savedReturnPreference !== null) {
+        returnToLastFieldEnabled = savedReturnPreference === 'true';
+    }
+
     normalizeFieldOrder();
+}
+
+function saveReturnPreference() {
+    localStorage.setItem('os_generator_return_last_field', String(returnToLastFieldEnabled));
+}
+
+function updateLastFieldPreferenceButton() {
+    const btn = document.getElementById('btn-last-field-pref');
+    if (!btn) return;
+
+    btn.innerHTML = returnToLastFieldEnabled
+        ? '<i class="fas fa-location-arrow"></i> Retorno ao último campo: Ativado'
+        : '<i class="fas fa-location-arrow"></i> Retorno ao último campo: Desativado';
+}
+
+function toggleLastFieldReturnPreference() {
+    returnToLastFieldEnabled = !returnToLastFieldEnabled;
+    saveReturnPreference();
+    updateLastFieldPreferenceButton();
+    showToast(returnToLastFieldEnabled ? 'Retorno ao último campo ativado.' : 'Retorno ao último campo desativado.');
 }
 
 function saveLastActiveField() {
@@ -386,6 +413,7 @@ function switchMode(mode) {
         previewSection.classList.add('hidden');
         modeTitle.parentElement.classList.add('hidden');
         renderConfig();
+        updateLastFieldPreferenceButton();
     } else {
         formContainer.classList.remove('hidden');
         configPanel.classList.add('hidden');
@@ -395,7 +423,7 @@ function switchMode(mode) {
         modeTitle.innerText = mode === 'simple' ? 'Ordem de Serviço Simples' : 'Ordem de Serviço Complexa';
         renderForm();
         updatePreviews();
-        if (!focusLastEditedField(mode)) {
+        if (!returnToLastFieldEnabled || !focusLastEditedField(mode)) {
             const firstInput = formContainer.querySelector('input, textarea, select, button.choice-btn');
             if (firstInput) firstInput.focus();
         }
