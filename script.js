@@ -33,7 +33,7 @@ const fieldPool = {
     cabos_rompidos: { label: 'Nota cabos rompidos ou soltos?', type: 'binary', simple: false, complex: true },
     estrutura_ok: { label: 'Estrutura conferida, sem efeito?', type: 'binary', simple: false, complex: true },
     reboot_ok: { label: 'Reboot físico, sem efeito?', type: 'binary', simple: false, complex: true },
-    outras_obs: { label: 'Outras observações gerais', type: 'text', default: 'Nenhuma observação adicional.', simple: false, complex: true, fullWidth: true }
+    outras_obs: { label: 'Outras observações gerais', type: 'textarea', default: 'Nenhuma observação adicional.', simple: false, complex: true, fullWidth: true }
 };
 
 const binaryOptions = ['Sim', 'Não'];
@@ -156,6 +156,20 @@ function renderForm() {
 
                 div.appendChild(label);
                 div.appendChild(buttonGroup);
+            } else if (field.type === 'textarea') {
+                const textarea = document.createElement('textarea');
+                textarea.placeholder = field.label;
+                textarea.value = values[key] !== undefined ? values[key] : '';
+                textarea.id = `input-${key}`;
+                textarea.rows = 4;
+                textarea.oninput = (e) => {
+                    values[key] = e.target.value;
+                    saveValues();
+                    updatePreviews();
+                };
+
+                div.appendChild(label);
+                div.appendChild(textarea);
             } else {
                 const input = document.createElement('input');
                 input.type = 'text';
@@ -248,9 +262,6 @@ function updatePreviews() {
         osPreview.value = msgOS;
         telPreview.value = msgTel;
     } else {
-        const now = new Date();
-        const dateTime = now.toLocaleString('pt-BR');
-        
         let obsTech = [];
         if (d('caixa_ok') === 'Sim') obsTech.push("Caixa ok"); else obsTech.push("Caixa fora");
         if (d('cabos_rompidos') === 'Sim') obsTech.push("Nota cabos rompidos ou soltos"); else obsTech.push("Não nota cabos rompidos ou soltos");
@@ -269,6 +280,7 @@ Sinal da ONU: ${d('sinal_onu')}
 
 =====================
 Observações Técnicas: ${obsFormatadas}
+Outras observações gerais: ${d('outras_obs')}
 Ult. O.S.: ${d('os_recente')}
 =====================
 
