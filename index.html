@@ -36,6 +36,10 @@
             </nav>
         </header>
 
+        <div class="desktop-hint large-screen-only">
+            Para uma experiência mais fluida no atendimento, recomendamos usar esta página em tamanho reduzido ao lado do sistema da empresa.
+        </div>
+
         <main class="main-content">
             <!-- Left Layout: Inputs -->
             <section class="input-section glass">
@@ -51,6 +55,7 @@
                 <div id="config-container" class="config-panel hidden">
                     <h3>Personalização de Campos</h3>
                     <p>Selecione quais campos devem aparecer nos modos.</p>
+                    <div id="config-global-status" class="new-field-status hidden"></div>
                     <div class="config-actions">
                         <button id="btn-last-field-pref" class="copy-btn" onclick="toggleLastFieldReturnPreference()">
                             <i class="fas fa-location-arrow"></i> Retorno ao último campo: Ativado
@@ -72,7 +77,7 @@
 
             <!-- Right Layout: Preview -->
             <section class="preview-section">
-                <div class="card glass">
+                <div id="os-card" class="card glass">
                     <div class="card-header">
                         <h3><i class="fas fa-file-contract"></i> Ficha Técnica</h3>
                         <button class="copy-btn" onclick="copyContent('os-preview')">
@@ -84,7 +89,7 @@
                     </div>
                 </div>
 
-                <div class="card glass">
+                <div id="telegram-card" class="card glass">
                     <div class="card-header">
                         <h3><i class="fab fa-telegram"></i> Mensagem Telegram</h3>
                         <button class="copy-btn" onclick="copyContent('telegram-preview')">
@@ -93,6 +98,30 @@
                     </div>
                     <div class="preview-area">
                         <textarea id="telegram-preview" readonly spellcheck="false"></textarea>
+                    </div>
+                </div>
+
+                <div id="custom-field-side" class="card glass large-screen-only hidden side-field-builder">
+                    <div class="custom-field-builder">
+                        <h4>Novo Campo</h4>
+                        <p>Crie campos extras e escolha onde eles refletem.</p>
+                        <div class="custom-field-form">
+                            <input id="new-field-name" type="text" placeholder="Nome do campo" />
+                            <select id="new-field-type">
+                                <option value="text">Texto</option>
+                                <option value="textarea">Texto longo</option>
+                            </select>
+                        </div>
+                        <div class="custom-field-flags">
+                            <label><input id="new-field-simple" type="checkbox" checked /> Simples</label>
+                            <label><input id="new-field-complex" type="checkbox" checked /> Complexa</label>
+                            <label><input id="new-field-os" type="checkbox" checked /> Ficha Técnica</label>
+                            <label><input id="new-field-tel" type="checkbox" /> Telegram</label>
+                        </div>
+                        <div id="new-field-status" class="new-field-status hidden"></div>
+                        <button class="copy-btn" onclick="addCustomField()">
+                            <i class="fas fa-plus"></i> Criar Campo
+                        </button>
                     </div>
                 </div>
             </section>

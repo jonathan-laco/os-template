@@ -1,5 +1,6 @@
 // State Management
 const DEFAULT_MODE = 'simple';
+const CUSTOM_FIELDS_STORAGE_KEY = 'os_generator_custom_fields';
 let currentMode = DEFAULT_MODE;
 const fieldPool = {
     priority: {
@@ -159,6 +160,8 @@ const binaryOptions = ['Sim', 'Não'];
 let values = {};
 let lastActiveFieldByMode = { simple: null, complex: null };
 let returnToLastFieldEnabled = true;
+let customFields = {};
+let toastTimer = null;
 
 const legacyFieldMap = {
     prioridade_s: 'priority',
@@ -184,6 +187,7 @@ const legacyFieldMap = {
 };
 
 document.addEventListener('DOMContentLoaded', () => {
+    loadCustomFields();
     loadSettings();
     migrateLegacyValues();
     switchMode(DEFAULT_MODE);
@@ -201,6 +205,12 @@ document.addEventListener('DOMContentLoaded', () => {
             focusLastEditedField(currentMode);
         }
     });
+
+    window.addEventListener('resize', () => {
+        if (currentMode === 'config') {
+            switchMode('config');
+        }
+    });
 });
 
 function getLabelForMode(field, mode = currentMode) {
@@ -209,6 +219,186 @@ function getLabelForMode(field, mode = currentMode) {
     }
 
     return field.label[mode] || field.label.simple || field.label.complex || 'Campo';
+}
+
+function isCustomFieldKey(key) {
+    return key.startsWith('custom_');
+}
+
+function saveCustomFields() {
+    localStorage.setItem(CUSTOM_FIELDS_STORAGE_KEY, JSON.stringify(customFields));
+}
+
+function loadCustomFields() {
+    const savedCustomFields = localStorage.getItem(CUSTOM_FIELDS_STORAGE_KEY);
+    if (!savedCustomFields) return;
+
+    try {
+        const parsed = JSON.parse(savedCustomFields);
+        if (!parsed || typeof parsed !== 'object') return;
+
+        Object.entries(parsed).forEach(([key, field]) => {
+            if (!isCustomFieldKey(key) || !field || typeof field !== 'object') return;
+            if (!field.label || !field.type) return;
+            fieldPool[key] = field;
+        });
+
+        customFields = parsed;
+    } catch {
+        customFields = {};
+    }
+}
+
+function generateCustomFieldKey(name) {
+    const normalized = name
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '');
+
+    return `custom_${normalized || 'campo'}_${Date.now()}`;
+}
+
+function normalizeFieldName(name) {
+    return String(name || '')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function getFieldAllLabels(field) {
+    if (!field || !field.label) return [];
+    if (typeof field.label === 'string') return [field.label];
+    return [field.label.simple, field.label.complex].filter(Boolean);
+}
+
+function hasDuplicateFieldName(name) {
+    const target = normalizeFieldName(name);
+    if (!target) return false;
+
+    return Object.values(fieldPool).some((field) =>
+        getFieldAllLabels(field).some((label) => normalizeFieldName(label) === target)
+    );
+}
+
+function showCustomFieldStatus(message, type) {
+    const statusEl = document.getElementById('new-field-status');
+    if (!statusEl) return;
+    statusEl.innerText = message;
+    statusEl.className = `new-field-status ${type}`;
+}
+
+function showConfigGlobalStatus(message, type) {
+    const statusEl = document.getElementById('config-global-status');
+    if (!statusEl) return;
+    statusEl.innerText = message;
+    statusEl.className = `new-field-status ${type}`;
+}
+
+function addCustomField() {
+    const nameEl = document.getElementById('new-field-name');
+    const typeEl = document.getElementById('new-field-type');
+    const simpleEl = document.getElementById('new-field-simple');
+    const complexEl = document.getElementById('new-field-complex');
+    const osEl = document.getElementById('new-field-os');
+    const telEl = document.getElementById('new-field-tel');
+
+    if (!nameEl || !typeEl || !simpleEl || !complexEl || !osEl || !telEl) return;
+
+    const name = nameEl.value.trim();
+    if (!name) {
+        showCustomFieldStatus('Preencha o nome do campo para criar.', 'error');
+        showConfigGlobalStatus('Preencha o nome do campo para criar.', 'error');
+        showToast('Informe o nome do campo.');
+        nameEl.focus();
+        return;
+    }
+
+    if (hasDuplicateFieldName(name)) {
+        showCustomFieldStatus('Já existe um campo com esse nome. Use um nome diferente.', 'error');
+        showConfigGlobalStatus('Este campo já foi criado. Use um nome diferente.', 'error');
+        showToast('Não é permitido criar campo com nome duplicado.');
+        nameEl.focus();
+        return;
+    }
+
+    const simple = simpleEl.checked;
+    const complex = complexEl.checked;
+    if (!simple && !complex) {
+        showCustomFieldStatus('Selecione pelo menos Simples ou Complexa.', 'error');
+        showConfigGlobalStatus('Selecione pelo menos Simples ou Complexa.', 'error');
+        showToast('Selecione Simples e/ou Complexa.');
+        return;
+    }
+
+    const key = generateCustomFieldKey(name);
+    const type = typeEl.value === 'textarea' ? 'textarea' : 'text';
+
+    const newField = {
+        label: { simple: name, complex: name },
+        type,
+        default: '',
+        simple,
+        complex,
+        os: osEl.checked,
+        tel: telEl.checked,
+        fullWidth: type === 'textarea'
+    };
+
+    fieldPool[key] = newField;
+    customFields[key] = newField;
+
+    if (simple && !fieldOrder.simple.includes(key)) fieldOrder.simple.push(key);
+    if (complex && !fieldOrder.complex.includes(key)) fieldOrder.complex.push(key);
+
+    values[key] = '';
+    saveCustomFields();
+    saveSettings();
+    saveValues();
+    renderConfig();
+    renderForm();
+    updatePreviews();
+
+    nameEl.value = '';
+    typeEl.value = 'text';
+    simpleEl.checked = true;
+    complexEl.checked = true;
+    osEl.checked = true;
+    telEl.checked = false;
+    showCustomFieldStatus(`OK: campo "${name}" criado com sucesso.`, 'success');
+    showConfigGlobalStatus(`OK: campo "${name}" criado com sucesso.`, 'success');
+    showToast(`OK: campo "${name}" criado.`);
+}
+
+function removeCustomField(key) {
+    if (!isCustomFieldKey(key) || !fieldPool[key]) return;
+    if (!confirm('Deseja remover este campo personalizado?')) return;
+
+    const removedName = getLabelForMode(fieldPool[key], 'simple');
+
+    delete fieldPool[key];
+    delete customFields[key];
+    delete values[key];
+
+    fieldOrder.simple = fieldOrder.simple.filter((k) => k !== key);
+    fieldOrder.complex = fieldOrder.complex.filter((k) => k !== key);
+
+    if (lastActiveFieldByMode.simple === key) lastActiveFieldByMode.simple = null;
+    if (lastActiveFieldByMode.complex === key) lastActiveFieldByMode.complex = null;
+
+    saveCustomFields();
+    saveSettings();
+    saveValues();
+    saveLastActiveField();
+    renderConfig();
+    renderForm();
+    updatePreviews();
+    showCustomFieldStatus(`OK: campo "${removedName}" removido com sucesso.`, 'success');
+    showConfigGlobalStatus(`OK: campo "${removedName}" removido com sucesso.`, 'success');
+    showToast(`OK: campo "${removedName}" removido.`);
 }
 
 function isVisibleInOutput(key, mode, output) {
@@ -405,12 +595,23 @@ function switchMode(mode) {
     const modeTitle = document.getElementById('mode-title');
     const resetBtn = document.getElementById('btn-reset');
     const previewSection = document.querySelector('.preview-section');
+    const osCard = document.getElementById('os-card');
+    const telegramCard = document.getElementById('telegram-card');
+    const customFieldSide = document.getElementById('custom-field-side');
+    const isLargeScreen = window.matchMedia('(min-width: 1366px)').matches;
 
     if (mode === 'config') {
         formContainer.classList.add('hidden');
         configPanel.classList.remove('hidden');
         resetBtn.classList.add('hidden');
-        previewSection.classList.add('hidden');
+        if (isLargeScreen) {
+            previewSection.classList.remove('hidden');
+            if (osCard) osCard.classList.add('hidden');
+            if (telegramCard) telegramCard.classList.add('hidden');
+            if (customFieldSide) customFieldSide.classList.remove('hidden');
+        } else {
+            previewSection.classList.add('hidden');
+        }
         modeTitle.parentElement.classList.add('hidden');
         renderConfig();
         updateLastFieldPreferenceButton();
@@ -419,6 +620,9 @@ function switchMode(mode) {
         configPanel.classList.add('hidden');
         resetBtn.classList.remove('hidden');
         previewSection.classList.remove('hidden');
+        if (osCard) osCard.classList.remove('hidden');
+        if (telegramCard) telegramCard.classList.remove('hidden');
+        if (customFieldSide) customFieldSide.classList.add('hidden');
         modeTitle.parentElement.classList.remove('hidden');
         modeTitle.innerText = mode === 'simple' ? 'Ordem de Serviço Simples' : 'Ordem de Serviço Complexa';
         renderForm();
@@ -529,6 +733,9 @@ function renderConfig() {
 
         const item = document.createElement('div');
         item.className = 'config-item glass';
+        const customActions = isCustomFieldKey(key)
+            ? `<div class="custom-actions"><button class="order-btn" onclick="removeCustomField('${key}')"><i class="fas fa-trash"></i> Remover campo</button></div>`
+            : '';
         item.innerHTML = `
             <div class="config-label-row">
                 <span class="field-name">${mergedLabel}</span>
@@ -558,6 +765,7 @@ function renderConfig() {
                 <button class="order-btn" onclick="moveField('${key}', 'complex', -1)" ${field.complex ? '' : 'disabled'} title="Subir na Complexa">↑ Complexa</button>
                 <button class="order-btn" onclick="moveField('${key}', 'complex', 1)" ${field.complex ? '' : 'disabled'} title="Descer na Complexa">↓ Complexa</button>
             </div>
+            ${customActions}
         `;
         list.appendChild(item);
     });
@@ -602,6 +810,17 @@ function moveField(key, mode, direction) {
 
 function resetSettingsToDefault() {
     if (!confirm('Deseja voltar ao padrão definido no sistema?')) return;
+
+    Object.keys(customFields).forEach((key) => {
+        delete fieldPool[key];
+        delete values[key];
+    });
+    customFields = {};
+    localStorage.removeItem(CUSTOM_FIELDS_STORAGE_KEY);
+
+    if (lastActiveFieldByMode.simple && !fieldPool[lastActiveFieldByMode.simple]) lastActiveFieldByMode.simple = null;
+    if (lastActiveFieldByMode.complex && !fieldPool[lastActiveFieldByMode.complex]) lastActiveFieldByMode.complex = null;
+    saveLastActiveField();
 
     Object.keys(fieldPool).forEach((key) => {
         fieldPool[key].simple = defaultFieldPool[key].simple;
@@ -689,6 +908,67 @@ function updatePreviews() {
         osPreview.value = msgOS;
         telPreview.value = msgTel;
     } else {
+        const now = new Date().toLocaleString('pt-BR');
+
+        const buildTechnicalObservations = () => {
+            const binaryFields = ['caixa_ok', 'cabos_rompidos', 'estrutura_ok', 'reboot_ok'];
+            const parts = [];
+
+            binaryFields.forEach((key) => {
+                if (!isVisibleInOutput(key, 'complex', 'os')) return;
+                parts.push(`${getLabelForMode(fieldPool[key], 'complex')}: ${d(key)}`);
+            });
+
+            return parts.length ? parts.join(' | ') : '.';
+        };
+
+        const buildComplexOsTemplate = () => {
+            const technicalObservations = buildTechnicalObservations();
+            const lines = [
+                `O.S. Gerada: ${now}`,
+                '',
+                `Cliente: ${d('customer')}`,
+                `O.S.: ${d('priority')}`,
+                `Motivo: ${d('reason')}`,
+                `Ult. O.S.: ${d('os_recente')}`,
+                `Data: ${d('visit_date')}`,
+                `Telefone: ${d('contact')}`,
+                `Local: ${d('location')}`,
+                '',
+                'Janela de atendimento: (: - :)',
+                '',
+                '=====================',
+                `*** ${d('restricao')} ***`,
+                '',
+                `O.S.: ${d('priority')}`,
+                '',
+                `Motivo: ${d('reason')}`,
+                '',
+                '=====================',
+                '',
+                `Alarmes da ONU: ${d('alarme_onu')}`,
+                `Sinal da ONU: ${d('sinal_onu')} dBm`,
+                '',
+                '=====================',
+                `Observações Técnicas: ${technicalObservations}`,
+                '',
+                `Outras Observações: ${d('outras_obs')}`,
+                '',
+                `Ult. O.S.: ${d('os_recente')}`,
+                '',
+                '=====================',
+                '',
+                `Pacote: ${d('plan')} Mbps`,
+                `NAP: ${d('nap')}`,
+                `POP: ${d('pop')}`,
+                `Local: ${d('location')}`,
+                `Referência: ${d('reference')}`,
+                `Contato: ${d('contact')}`
+            ];
+
+            return lines.join('\n');
+        };
+
         const buildComplexPreview = (output) => {
             const lines = [];
 
@@ -707,10 +987,9 @@ function updatePreviews() {
             return lines;
         };
 
-        const complexLines = buildComplexPreview('os');
         const complexTelLines = buildComplexPreview('tel');
 
-        const msgOS = complexLines.length ? complexLines.join('\n') : 'Nenhum campo configurado para Ficha Técnica.';
+        const msgOS = buildComplexOsTemplate();
         const msgTel = complexTelLines.length ? complexTelLines.join('\n') : 'Nenhum campo configurado para Telegram.';
 
         osPreview.value = msgOS;
@@ -726,13 +1005,19 @@ function copyContent(id) {
     });
 }
 
-function showToast(message = 'Copiado com sucesso!') {
+function showToast(message = 'Copiado com sucesso!', duration = 2800) {
     const toast = document.getElementById('toast');
     toast.innerText = message;
     toast.classList.remove('hidden');
-    setTimeout(() => {
+
+    if (toastTimer) {
+        clearTimeout(toastTimer);
+    }
+
+    toastTimer = setTimeout(() => {
         toast.classList.add('hidden');
-    }, 2000);
+        toastTimer = null;
+    }, duration);
 }
 
 function startTimeUpdate() {
