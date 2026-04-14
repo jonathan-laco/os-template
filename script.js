@@ -1,5 +1,5 @@
 // State Management
-const DEFAULT_MODE = 'complex';
+const DEFAULT_MODE = 'simple';
 let currentMode = DEFAULT_MODE;
 const fieldPool = {
     priority: {
