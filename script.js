@@ -6,7 +6,7 @@ const fieldPool = {
     priority: {
         label: { simple: 'Nível de prioridade', complex: 'Tipo (P0/P1/P2)' },
         type: 'text',
-        default: 'P1',
+        default: '',
         simple: true,
         complex: true,
         os: true,
@@ -880,14 +880,31 @@ function updatePreviews() {
 
     const simpleLabelOverride = {
         tel: {
-            priority: 'OS / Prioridade'
+            customer: 'Nome',
+            location: 'Endereço',
+            priority: 'OS / Prioridade',
+            visit_date: 'Horário'
         }
+    };
+
+    const simpleTelegramPreferredOrder = ['customer', 'location', 'priority', 'visit_date'];
+
+    const getSimpleTelegramKeys = () => {
+        const visibleKeys = getOrderedVisibleKeys('simple').filter((key) => isVisibleInOutput(key, 'simple', 'tel'));
+        const orderedKeys = simpleTelegramPreferredOrder.filter((key) => visibleKeys.includes(key));
+
+        visibleKeys.forEach((key) => {
+            if (!orderedKeys.includes(key)) orderedKeys.push(key);
+        });
+
+        return orderedKeys;
     };
 
     const buildSimplePreview = (output) => {
         const lines = [];
+        const keys = output === 'tel' ? getSimpleTelegramKeys() : getOrderedVisibleKeys('simple');
 
-        getOrderedVisibleKeys('simple').forEach((key) => {
+        keys.forEach((key) => {
             if (!isVisibleInOutput(key, 'simple', output)) return;
 
             const icon = simpleEmojiMap[output]?.[key] || '📌';
