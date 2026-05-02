@@ -36,6 +36,13 @@
             </nav>
         </header>
 
+        <div class="tab-strip glass" aria-label="Ordens de serviço abertas">
+            <div id="service-tabs" class="service-tabs"></div>
+            <button id="btn-new-tab" class="new-tab-btn" onclick="createNewServiceTab()" title="Nova guia">
+                <i class="fas fa-plus"></i>
+            </button>
+        </div>
+
         <div class="desktop-hint large-screen-only">
             Para uma experiência mais fluida no atendimento, recomendamos usar esta página em tamanho reduzido ao lado do sistema da empresa.
         </div>
@@ -62,6 +69,16 @@
                         </button>
                         <button class="copy-btn" onclick="resetSettingsToDefault()">
                             <i class="fas fa-rotate-left"></i> Voltar ao padrão
+                        </button>
+                        <button class="copy-btn" onclick="exportUserSettings()">
+                            <i class="fas fa-file-export"></i> Exportar config
+                        </button>
+                        <button class="copy-btn" onclick="triggerImportUserSettings()">
+                            <i class="fas fa-file-import"></i> Importar config
+                        </button>
+                        <input id="import-config-file" class="hidden" type="file" accept="application/json,.json" onchange="importUserSettings(event)" />
+                        <button class="copy-btn danger-btn" onclick="resetAllLocalStorage()">
+                            <i class="fas fa-broom"></i> Reset localStorage
                         </button>
                     </div>
                     <div class="config-grids">

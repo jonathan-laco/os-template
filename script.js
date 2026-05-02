@@ -1,6 +1,9 @@
 // State Management
 const DEFAULT_MODE = 'simple';
 const CUSTOM_FIELDS_STORAGE_KEY = 'os_generator_custom_fields';
+const SERVICE_TABS_STORAGE_KEY = 'os_generator_service_tabs';
+const ACTIVE_TAB_STORAGE_KEY = 'os_generator_active_tab';
+const SETTINGS_EXPORT_VERSION = 1;
 let currentMode = DEFAULT_MODE;
 const fieldPool = {
     priority: {
@@ -158,6 +161,8 @@ let fieldOrder = JSON.parse(JSON.stringify(defaultFieldOrder));
 const binaryOptions = ['Sim', 'Não'];
 
 let values = {};
+let serviceTabs = [];
+let activeTabId = null;
 let lastActiveFieldByMode = { simple: null, complex: null };
 let returnToLastFieldEnabled = true;
 let customFields = {};
@@ -188,8 +193,10 @@ const legacyFieldMap = {
 
 document.addEventListener('DOMContentLoaded', () => {
     loadCustomFields();
+    loadServiceTabs();
     loadSettings();
     migrateLegacyValues();
+    renderServiceTabs();
     switchMode(DEFAULT_MODE);
     startTimeUpdate();
     updateLastFieldPreferenceButton();
@@ -223,6 +230,19 @@ function getLabelForMode(field, mode = currentMode) {
 
 function isCustomFieldKey(key) {
     return key.startsWith('custom_');
+}
+
+function isSafeFieldKey(key) {
+    return /^[a-zA-Z0-9_]+$/.test(key);
+}
+
+function escapeHtml(value) {
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
 }
 
 function saveCustomFields() {
@@ -282,6 +302,197 @@ function hasDuplicateFieldName(name) {
     return Object.values(fieldPool).some((field) =>
         getFieldAllLabels(field).some((label) => normalizeFieldName(label) === target)
     );
+}
+
+function createDefaultTab(index = 1, tabValues = {}) {
+    return {
+        id: `tab_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        title: `OS ${index}`,
+        values: tabValues && typeof tabValues === 'object' ? tabValues : {}
+    };
+}
+
+function getActiveTab() {
+    return serviceTabs.find((tab) => tab.id === activeTabId) || serviceTabs[0];
+}
+
+function updateServiceTabTitle(tab) {
+    if (!tab) return;
+
+    const data = tab.values || {};
+    const candidate = [data.customer, data.priority, data.reason]
+        .find((value) => typeof value === 'string' && value.trim());
+
+    if (candidate) {
+        tab.title = candidate.trim().slice(0, 24);
+        return;
+    }
+
+    const index = serviceTabs.indexOf(tab) + 1;
+    tab.title = `OS ${index || 1}`;
+}
+
+function syncActiveTabValues() {
+    const activeTab = getActiveTab();
+    if (!activeTab) return;
+    activeTab.values = values;
+    updateServiceTabTitle(activeTab);
+}
+
+function saveServiceTabs() {
+    localStorage.setItem(SERVICE_TABS_STORAGE_KEY, JSON.stringify(serviceTabs));
+    if (activeTabId) localStorage.setItem(ACTIVE_TAB_STORAGE_KEY, activeTabId);
+}
+
+function loadServiceTabs() {
+    let parsedTabs = null;
+    const savedTabs = localStorage.getItem(SERVICE_TABS_STORAGE_KEY);
+
+    if (savedTabs) {
+        try {
+            parsedTabs = JSON.parse(savedTabs);
+        } catch {
+            parsedTabs = null;
+        }
+    }
+
+    if (Array.isArray(parsedTabs) && parsedTabs.length) {
+        serviceTabs = parsedTabs
+            .filter((tab) => tab && typeof tab === 'object')
+            .map((tab, index) => ({
+                id: typeof tab.id === 'string' ? tab.id : `tab_restored_${index}_${Date.now()}`,
+                title: typeof tab.title === 'string' && tab.title.trim() ? tab.title : `OS ${index + 1}`,
+                values: tab.values && typeof tab.values === 'object' ? tab.values : {}
+            }));
+    }
+
+    if (!serviceTabs.length) {
+        let legacyValues = {};
+        const savedValues = localStorage.getItem('os_generator_values');
+        if (savedValues) {
+            try {
+                const parsedValues = JSON.parse(savedValues);
+                if (parsedValues && typeof parsedValues === 'object') legacyValues = parsedValues;
+            } catch {
+                legacyValues = {};
+            }
+        }
+        serviceTabs = [createDefaultTab(1, legacyValues)];
+    }
+
+    const savedActiveTabId = localStorage.getItem(ACTIVE_TAB_STORAGE_KEY);
+    activeTabId = serviceTabs.some((tab) => tab.id === savedActiveTabId)
+        ? savedActiveTabId
+        : serviceTabs[0].id;
+
+    serviceTabs.forEach(updateServiceTabTitle);
+    values = getActiveTab().values;
+    saveServiceTabs();
+}
+
+function renderServiceTabs() {
+    const container = document.getElementById('service-tabs');
+    if (!container) return;
+
+    container.innerHTML = '';
+    serviceTabs.forEach((tab) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = `service-tab ${tab.id === activeTabId ? 'active' : ''}`;
+        button.onclick = () => switchServiceTab(tab.id);
+        button.title = tab.title;
+
+        const title = document.createElement('span');
+        title.className = 'service-tab-title';
+        title.textContent = tab.title;
+        button.appendChild(title);
+
+        const close = document.createElement('span');
+        close.className = 'service-tab-close';
+        close.innerHTML = '<i class="fas fa-xmark"></i>';
+        close.title = 'Fechar guia';
+        close.onclick = (event) => {
+            event.stopPropagation();
+            closeServiceTab(tab.id);
+        };
+        button.appendChild(close);
+
+        container.appendChild(button);
+    });
+}
+
+function createNewServiceTab() {
+    syncActiveTabValues();
+    const nextTab = createDefaultTab(serviceTabs.length + 1, {});
+    serviceTabs.push(nextTab);
+    activeTabId = nextTab.id;
+    values = nextTab.values;
+    saveServiceTabs();
+    renderServiceTabs();
+    if (currentMode === 'config') {
+        switchMode(DEFAULT_MODE);
+    } else {
+        renderForm();
+        updatePreviews();
+    }
+    showToast('Nova guia criada.');
+}
+
+function switchServiceTab(tabId) {
+    if (tabId === activeTabId) return;
+
+    const nextTab = serviceTabs.find((tab) => tab.id === tabId);
+    if (!nextTab) return;
+
+    syncActiveTabValues();
+    activeTabId = nextTab.id;
+    values = nextTab.values;
+    saveServiceTabs();
+    renderServiceTabs();
+    if (currentMode !== 'config') {
+        renderForm();
+        updatePreviews();
+        if (returnToLastFieldEnabled) focusLastEditedField(currentMode);
+    }
+}
+
+function closeServiceTab(tabId) {
+    const tabIndex = serviceTabs.findIndex((tab) => tab.id === tabId);
+    if (tabIndex === -1) return;
+
+    if (serviceTabs.length === 1) {
+        if (!confirm('Deseja limpar a OS desta guia?')) return;
+
+        values = {};
+        serviceTabs[0].values = values;
+        updateServiceTabTitle(serviceTabs[0]);
+        saveValues();
+        if (currentMode !== 'config') {
+            renderForm();
+            updatePreviews();
+        }
+        showToast('Guia atual limpa.');
+        return;
+    }
+
+    const tabTitle = serviceTabs[tabIndex].title || 'esta OS';
+    if (!confirm(`Deseja fechar "${tabTitle}"? Os dados preenchidos nesta guia serão removidos.`)) return;
+
+    serviceTabs.splice(tabIndex, 1);
+    if (activeTabId === tabId) {
+        const fallbackTab = serviceTabs[Math.max(0, tabIndex - 1)];
+        activeTabId = fallbackTab.id;
+        values = fallbackTab.values;
+    }
+
+    serviceTabs.forEach(updateServiceTabTitle);
+    saveServiceTabs();
+    renderServiceTabs();
+    if (currentMode !== 'config') {
+        renderForm();
+        updatePreviews();
+    }
+    showToast('Guia fechada.');
 }
 
 function showCustomFieldStatus(message, type) {
@@ -382,6 +593,9 @@ function removeCustomField(key) {
     delete fieldPool[key];
     delete customFields[key];
     delete values[key];
+    serviceTabs.forEach((tab) => {
+        if (tab.values) delete tab.values[key];
+    });
 
     fieldOrder.simple = fieldOrder.simple.filter((k) => k !== key);
     fieldOrder.complex = fieldOrder.complex.filter((k) => k !== key);
@@ -419,11 +633,6 @@ function loadSettings() {
                 if (typeof config[key].tel === 'boolean') fieldPool[key].tel = config[key].tel;
             }
         });
-    }
-
-    const savedValues = localStorage.getItem('os_generator_values');
-    if (savedValues) {
-        values = JSON.parse(savedValues);
     }
 
     const savedLastField = localStorage.getItem('os_generator_last_active_field');
@@ -529,6 +738,7 @@ function normalizeFieldOrder() {
 }
 
 function getOrderedVisibleKeys(mode) {
+    if (!fieldOrder[mode]) return [];
     normalizeFieldOrder();
     return fieldOrder[mode].filter((key) => fieldPool[key] && fieldPool[key][mode]);
 }
@@ -568,12 +778,169 @@ function saveSettings() {
     localStorage.setItem('os_generator_field_order', JSON.stringify(fieldOrder));
 }
 
+function buildUserSettingsExport() {
+    const config = {};
+
+    Object.keys(fieldPool).forEach((key) => {
+        config[key] = {
+            simple: Boolean(fieldPool[key].simple),
+            complex: Boolean(fieldPool[key].complex),
+            os: Boolean(fieldPool[key].os),
+            tel: Boolean(fieldPool[key].tel)
+        };
+    });
+
+    return {
+        app: 'os-template',
+        version: SETTINGS_EXPORT_VERSION,
+        exportedAt: new Date().toISOString(),
+        config,
+        fieldOrder: JSON.parse(JSON.stringify(fieldOrder)),
+        customFields: JSON.parse(JSON.stringify(customFields)),
+        returnToLastFieldEnabled
+    };
+}
+
+function exportUserSettings() {
+    const settings = buildUserSettingsExport();
+    const blob = new Blob([JSON.stringify(settings, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const timestamp = new Date().toISOString().slice(0, 10);
+    const link = document.createElement('a');
+
+    link.href = url;
+    link.download = `os-template-config-${timestamp}.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    showToast('Configurações exportadas.');
+}
+
+function triggerImportUserSettings() {
+    const input = document.getElementById('import-config-file');
+    if (!input) return;
+    input.value = '';
+    input.click();
+}
+
+function isValidImportedField(key, field) {
+    return isCustomFieldKey(key)
+        && isSafeFieldKey(key)
+        && field
+        && typeof field === 'object'
+        && field.label
+        && ['text', 'textarea', 'binary'].includes(field.type);
+}
+
+function normalizeImportedLabel(label) {
+    if (typeof label === 'string') return label;
+    if (label && typeof label === 'object') {
+        const simple = typeof label.simple === 'string' ? label.simple : 'Campo';
+        const complex = typeof label.complex === 'string' ? label.complex : simple;
+        return { simple, complex };
+    }
+    return 'Campo';
+}
+
+function applyImportedUserSettings(settings) {
+    if (!settings || typeof settings !== 'object' || settings.app !== 'os-template') {
+        throw new Error('Arquivo de configuração inválido.');
+    }
+
+    Object.keys(customFields).forEach((key) => {
+        delete fieldPool[key];
+    });
+
+    Object.keys(defaultFieldPool).forEach((key) => {
+        fieldPool[key].simple = defaultFieldPool[key].simple;
+        fieldPool[key].complex = defaultFieldPool[key].complex;
+        fieldPool[key].os = defaultFieldPool[key].os;
+        fieldPool[key].tel = defaultFieldPool[key].tel;
+    });
+
+    customFields = {};
+    const importedCustomFields = settings.customFields && typeof settings.customFields === 'object'
+        ? settings.customFields
+        : {};
+
+    Object.entries(importedCustomFields).forEach(([key, field]) => {
+        if (!isValidImportedField(key, field)) return;
+        const normalizedField = {
+            label: normalizeImportedLabel(field.label),
+            type: field.type === 'textarea' ? 'textarea' : field.type === 'binary' ? 'binary' : 'text',
+            default: typeof field.default === 'string' ? field.default : '',
+            simple: Boolean(field.simple),
+            complex: Boolean(field.complex),
+            os: Boolean(field.os),
+            tel: Boolean(field.tel),
+            fullWidth: Boolean(field.fullWidth || field.type === 'textarea')
+        };
+        customFields[key] = normalizedField;
+        fieldPool[key] = normalizedField;
+    });
+
+    const importedConfig = settings.config && typeof settings.config === 'object' ? settings.config : {};
+    Object.keys(fieldPool).forEach((key) => {
+        const config = importedConfig[key];
+        if (!config || typeof config !== 'object') return;
+        if (typeof config.simple === 'boolean') fieldPool[key].simple = config.simple;
+        if (typeof config.complex === 'boolean') fieldPool[key].complex = config.complex;
+        if (typeof config.os === 'boolean') fieldPool[key].os = config.os;
+        if (typeof config.tel === 'boolean') fieldPool[key].tel = config.tel;
+    });
+
+    const importedOrder = settings.fieldOrder && typeof settings.fieldOrder === 'object' ? settings.fieldOrder : {};
+    fieldOrder = JSON.parse(JSON.stringify(defaultFieldOrder));
+    if (Array.isArray(importedOrder.simple)) fieldOrder.simple = importedOrder.simple.filter((key) => fieldPool[key]);
+    if (Array.isArray(importedOrder.complex)) fieldOrder.complex = importedOrder.complex.filter((key) => fieldPool[key]);
+    normalizeFieldOrder();
+
+    if (typeof settings.returnToLastFieldEnabled === 'boolean') {
+        returnToLastFieldEnabled = settings.returnToLastFieldEnabled;
+    }
+
+    saveCustomFields();
+    saveSettings();
+    saveReturnPreference();
+    updateLastFieldPreferenceButton();
+}
+
+function importUserSettings(event) {
+    const file = event.target.files && event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+        try {
+            const settings = JSON.parse(reader.result);
+            applyImportedUserSettings(settings);
+            renderConfig();
+            renderForm();
+            updatePreviews();
+            showConfigGlobalStatus('OK: configurações importadas com sucesso.', 'success');
+            showToast('Configurações importadas.');
+        } catch (error) {
+            showConfigGlobalStatus(error.message || 'Não foi possível importar este arquivo.', 'error');
+            showToast('Arquivo de configuração inválido.');
+        }
+    };
+    reader.onerror = () => {
+        showConfigGlobalStatus('Não foi possível ler o arquivo selecionado.', 'error');
+        showToast('Falha ao ler o arquivo.');
+    };
+    reader.readAsText(file);
+}
+
 function saveValues() {
+    syncActiveTabValues();
+    saveServiceTabs();
     localStorage.setItem('os_generator_values', JSON.stringify(values));
+    renderServiceTabs();
 }
 
 function resetForm() {
-    if (confirm('Deseja limpar todos os campos?')) {
+    if (confirm('Deseja limpar todos os campos desta guia?')) {
         values = {};
         Object.keys(fieldPool).forEach((key) => {
             values[key] = '';
@@ -582,6 +949,16 @@ function resetForm() {
         renderForm();
         updatePreviews();
     }
+}
+
+function resetAllLocalStorage() {
+    if (!confirm('Deseja apagar todos os dados salvos no localStorage? Isso remove guias, campos, configurações e textos preenchidos.')) return;
+
+    localStorage.clear();
+    showToast('localStorage limpo. Recarregando...');
+    setTimeout(() => {
+        window.location.reload();
+    }, 350);
 }
 
 function switchMode(mode) {
@@ -730,6 +1107,8 @@ function renderConfig() {
         const simpleLabel = getLabelForMode(field, 'simple');
         const complexLabel = getLabelForMode(field, 'complex');
         const mergedLabel = simpleLabel === complexLabel ? simpleLabel : `${simpleLabel} ↔ ${complexLabel}`;
+        const safeLabel = escapeHtml(mergedLabel);
+        const safeOrigin = escapeHtml(`${field.simple ? 'Simples' : ''}${field.simple && field.complex ? ' | ' : ''}${field.complex ? 'Complexa' : ''}`);
 
         const item = document.createElement('div');
         item.className = 'config-item glass';
@@ -738,8 +1117,8 @@ function renderConfig() {
             : '';
         item.innerHTML = `
             <div class="config-label-row">
-                <span class="field-name">${mergedLabel}</span>
-                <span class="field-origin">${field.simple ? 'Simples' : ''}${field.simple && field.complex ? ' | ' : ''}${field.complex ? 'Complexa' : ''}</span>
+                <span class="field-name">${safeLabel}</span>
+                <span class="field-origin">${safeOrigin}</span>
             </div>
             <div class="toggle-group">
                 <button class="toggle-btn ${field.simple ? 'active' : ''}" onclick="toggleFieldFlag('${key}', 'simple', this)">
@@ -814,6 +1193,9 @@ function resetSettingsToDefault() {
     Object.keys(customFields).forEach((key) => {
         delete fieldPool[key];
         delete values[key];
+        serviceTabs.forEach((tab) => {
+            if (tab.values) delete tab.values[key];
+        });
     });
     customFields = {};
     localStorage.removeItem(CUSTOM_FIELDS_STORAGE_KEY);
@@ -831,6 +1213,7 @@ function resetSettingsToDefault() {
 
     fieldOrder = JSON.parse(JSON.stringify(defaultFieldOrder));
     normalizeFieldOrder();
+    saveServiceTabs();
     saveSettings();
     renderConfig();
     renderForm();
