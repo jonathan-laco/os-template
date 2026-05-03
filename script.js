@@ -4,6 +4,7 @@ const CUSTOM_FIELDS_STORAGE_KEY = 'os_generator_custom_fields';
 const SERVICE_TABS_STORAGE_KEY = 'os_generator_service_tabs';
 const ACTIVE_TAB_STORAGE_KEY = 'os_generator_active_tab';
 const SETTINGS_EXPORT_VERSION = 1;
+const SERVICE_TAB_TITLE_MAX_LENGTH = 5;
 let currentMode = DEFAULT_MODE;
 const fieldPool = {
     priority: {
@@ -324,7 +325,7 @@ function updateServiceTabTitle(tab) {
         .find((value) => typeof value === 'string' && value.trim());
 
     if (candidate) {
-        tab.title = candidate.trim().slice(0, 24);
+        tab.title = candidate.trim().slice(0, SERVICE_TAB_TITLE_MAX_LENGTH);
         return;
     }
 
